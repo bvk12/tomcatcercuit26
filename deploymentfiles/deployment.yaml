@@ -23,6 +23,6 @@ spec:
     spec:
       containers:
         - name: fb-pod-cont
-          image: bvkk/tomcat:5
+          image: bvkk/tomcat:16
           ports:
             - containerPort: 8080
