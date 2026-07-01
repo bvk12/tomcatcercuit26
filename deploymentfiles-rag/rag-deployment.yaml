@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: fb-pod-cont
-          image: bvkk/smart-rag-frontend:latest
+          image: bvkk/netflix:latest
           ports:
             - containerPort: 8081
       imagePullSecrets:
