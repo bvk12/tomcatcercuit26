@@ -1,0 +1,19 @@
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+   name: fb-lb-svc-demo
+   labels:
+     app: facebook-demo
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8081
+      protocol: TCP
+
+  selector:
+        app: facebook-demo
+        
+      
