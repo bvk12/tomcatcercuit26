@@ -1,0 +1,30 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fb-deploy-demo
+  labels:
+    app: facebook-demo
+    env: lab-demo
+
+spec:
+  selector:
+    matchLabels:
+      app: facebook-demo
+  replicas: 2  
+  template:
+    metadata:
+      name: fb-pod-demo 
+      labels:
+        app: facebook-demo
+        env: lab-demo
+        tier: frontend 
+        version: v1_AC
+    spec:
+      containers:
+        - name: fb-pod-cont
+          image: bvkk/smart-rag-frontend:latest
+          ports:
+            - containerPort: 8081
+      imagePullSecrets:
+        - name: dockerhub-secret    # Must match the exact name of the secret you created
