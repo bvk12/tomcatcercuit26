@@ -11,7 +11,7 @@ spec:
     path: prod-app # Path to your Helm files inside Git
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: prod
+    namespace: fprod
   syncPolicy:
     automated:
       prune: true
