@@ -1,0 +1,114 @@
+pipeline {
+    agent any
+
+    environment {
+        // Source Control & Chart Configuration
+        GITHUB_REPO_URL   = 'https://github.com/bvk12/tomcatcercuit26.git'
+        ARGOCD_MANIFEST   = 'argocd-application.yaml'
+        HELM_CHART_PATH   = 'prod-app'
+        AWS_REGION        = 'us-east-1'
+
+        // Container Registry Configuration
+        REGISTRY_SERVER   = 'docker.io'
+        IMAGE_REPOSITORY  = 'bvkk/tomcat'
+        
+        // Dynamically tracks the Jenkins build number to generate unique immutable tags
+        IMAGE_TAG         = "${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Git Repo Clone') {
+            steps {
+                echo 'Cloning application repository branch: main...'
+                checkout scmGit(
+                    branches: [[name: '*/main']], 
+                    extensions: [], 
+                    userRemoteConfigs: [[url: "${GITHUB_REPO_URL}"]]
+                )
+            }
+        }
+
+        stage('Docker Image Build') {
+            steps {
+                echo "Compiling code and packaging Docker container tag: ${IMAGE_TAG}..."
+                sh "docker build -t ${REGISTRY_SERVER}/${IMAGE_REPOSITORY}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Push to Docker Registry') {
+            steps {
+                echo 'Logging into secure container registry platform...'
+                // Fixed: Extracted token securely as a String to pass directly to docker login
+                withCredentials([string(credentialsId: 'dockerhub_token', variable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "${DOCKER_PASS}" | docker login ${REGISTRY_SERVER} -u "bvkk" --password-stdin
+                        docker push ${REGISTRY_SERVER}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
+        stage('Update Helm Values File') {
+            steps {
+                echo 'Modifying values.yaml image tag reference context tracking...'
+                sh "sed -i 's/tag: .*/tag: \"${IMAGE_TAG}\"/' ${HELM_CHART_PATH}/values.yaml"
+            }
+        }
+
+        stage('Git Push Manifest Changes') {
+            environment {
+                GIT_REPO_NAME = "tomcatcercuit26"
+                GIT_USER_NAME = "bvk12"
+            }
+            steps {
+                script {
+                    echo 'updating deployment file'
+                    withCredentials([string(credentialsId: 'githubtoken', variable: 'githubtoken')]) {
+                        sh """
+                            git config user.email "bvk@gmail.com"
+                            git config user.name "bvk"
+                            
+                            git add ${HELM_CHART_PATH}/values.yaml
+                            git commit -m "chore(gitops): bump runtime container tag to ${IMAGE_TAG} [skip ci]"
+                            
+                            # Fixed: Overwrote the push mechanism to securely use your Personal Access Token (PAT) over HTTPS
+                            git push https://${githubtoken}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                        """
+                    }
+                }
+            }
+        } // Fixed: Properly closed out the stage structure here
+
+        stage('ArgoCD Deploy to EKS') {
+            steps {
+                echo 'Synchronizing and applying updated ArgoCD application manifest profile to EKS cluster...'
+                // FIXED: Binding BOTH kubeconfig and AWS environment credentials natively using standard withCredentials
+                withCredentials([
+                    file(credentialsId: 'kube-config-file', variable: 'KUBECONFIG_PATH'),
+                    usernamePassword(credentialsId: 'aws-cred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh """
+                        export AWS_DEFAULT_REGION="${AWS_REGION}"
+                        
+                        echo "Validating path and syncing application manifest rule..."
+                        kubectl --kubeconfig="${KUBECONFIG_PATH}" apply -f ${ARGOCD_MANIFEST}
+                    """
+                }
+            }
+        }
+    }
+
+
+    post {
+        always {
+            echo 'Executing workspace environmental post-processing tasks...'
+            sh "docker logout ${REGISTRY_SERVER} || true"
+        }
+        success {
+            echo "CI/CD execution completed cleanly. ArgoCD will now roll out image tag version: ${IMAGE_TAG} to the EKS 'prod' namespace."
+        }
+        failure {
+            echo 'Pipeline step execution failure encountered. Review console output stack traces.'
+        }
+    }
+}
