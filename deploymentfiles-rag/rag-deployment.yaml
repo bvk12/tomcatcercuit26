@@ -25,6 +25,6 @@ spec:
         - name: fb-pod-cont
           image: bvkk/tomcat:20
           ports:
-            - containerPort: 8081
+            - containerPort: 8080
       imagePullSecrets:
         - name: dockerhub-secret    # Must match the exact name of the secret you created
