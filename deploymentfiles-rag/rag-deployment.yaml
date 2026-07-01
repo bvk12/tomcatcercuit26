@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: fb-pod-cont
-          image: bvkk/netflix:latest
+          image: bvkk/tomcat:20
           ports:
             - containerPort: 8081
       imagePullSecrets:
