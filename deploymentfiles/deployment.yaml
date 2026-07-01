@@ -26,3 +26,5 @@ spec:
           image: bvkk/tomcat:16
           ports:
             - containerPort: 8080
+      imagePullSecrets:
+        - name: dockerhub-secret    # Must match the exact name of the secret you created
