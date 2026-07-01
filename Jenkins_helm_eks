@@ -1,0 +1,45 @@
+pipeline {
+    agent any
+
+    environment {
+        // Path to your ArgoCD application manifest in the repository
+        ARGOCD_MANIFEST = "argocd-application.yaml"
+    }
+
+    stages {
+        stage('git repo clone') {
+            steps {
+                echo 'cloning git hub repo'
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/bvk12/tomcatcercuit26.git']])
+            }
+        }
+
+        stage('Deploy to ArgoCD') {
+            steps {
+                // Bind BOTH your Kubernetes config file AND your AWS access keys simultaneously
+                withCredentials([
+                    file(credentialsId: 'kube-config-file', variable: 'KUBECONFIG_PATH'),
+                    usernamePassword(credentialsId: 'aws-cred', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    sh '''
+                        echo "Setting target region for authentication token extraction..."
+                        # Tell the AWS CLI which region your EKS cluster lives in
+                        export AWS_DEFAULT_REGION="us-east-1"
+                        
+                        echo "Applying ArgoCD application manifest to EKS using secure file provider..."
+                        kubectl --kubeconfig="$KUBECONFIG_PATH" apply -f $ARGOCD_MANIFEST
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Successfully registered manifest! ArgoCD will now automatically deploy your Helm chart on EKS."
+        }
+        failure {
+            echo "Deployment failed. Please check your EKS connection settings or manifest syntax."
+        }
+    }
+}
